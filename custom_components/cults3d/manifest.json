@@ -1,0 +1,12 @@
+{
+  "domain": "cults3d",
+  "name": "Cults3D",
+  "codeowners": ["@HallyAus"],
+  "config_flow": true,
+  "documentation": "https://github.com/HallyAus/Cults3D",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/HallyAus/Cults3D/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

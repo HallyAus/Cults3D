@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Cults3D",
+        "description": "Enter your Cults3D username and API key. You can generate an API key from your Cults3D account settings under the API page.",
+        "data": {
+          "username": "Username",
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "username": "Your Cults3D username (nickname)",
+          "api_key": "API key from Cults3D settings"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Cults3D",
+        "description": "The API key for {username} is no longer valid. Please enter a new API key.",
+        "data": {
+          "api_key": "API Key"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or API key. Please check your credentials and ensure the user exists on Cults3D.",
+      "unknown": "An unexpected error occurred. Please check the logs for more details."
+    },
+    "abort": {
+      "already_configured": "This Cults3D account is already configured.",
+      "reauth_successful": "Re-authentication successful."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "followers": {
+        "name": "Followers"
+      },
+      "following": {
+        "name": "Following"
+      },
+      "creations": {
+        "name": "Creations"
+      },
+      "latest_creation": {
+        "name": "Latest Creation"
+      }
+    }
+  }
+}
