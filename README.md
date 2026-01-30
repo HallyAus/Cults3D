@@ -4,7 +4,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/HallyAus/Cults3D)](https://github.com/HallyAus/Cults3D/releases)
 [![License](https://img.shields.io/github/license/HallyAus/Cults3D)](LICENSE)
 
-A Home Assistant custom integration that connects to your [Cults3D](https://cults3d.com) account and provides comprehensive sensors for your creator profile statistics, sales tracking, and trending models.
+A Home Assistant custom integration that connects to your [Cults3D](https://cults3d.com) account and provides comprehensive sensors for your creator profile statistics, sales tracking, and the ability to track other creators' popular designs.
 
 ## Features
 
@@ -12,20 +12,27 @@ A Home Assistant custom integration that connects to your [Cults3D](https://cult
 - **Followers Count** - Track how many people are following you
 - **Following Count** - See how many creators you're following
 - **Creations Count** - Monitor your total number of 3D model uploads
-- **Total Views** - Track total views across all your designs
 
-### Sales & Earnings
+### Sales & Earnings (Your Own Sales)
 - **Total Earnings** - Your all-time earnings from sales (EUR)
 - **Total Sales** - Number of sales across all time
 - **Monthly Earnings** - Earnings from the last 30 days (EUR)
 - **Monthly Sales** - Number of sales in the last 30 days
 
-### Featured Creations
+### Featured Creations (Your Own)
 - **Latest Creation** - Your most recently published design
 - **Top Downloaded (Trending)** - Your most downloaded design
-- **Most Profitable** - Your highest-earning design
+- **Top Viewed** - Your most viewed design
 
-All data is fetched efficiently using a single GraphQL API call per update cycle (default: every 15 minutes).
+### Tracked Creations (External)
+Track any Cults3D creation to monitor its popularity metrics. Useful for:
+- Monitoring competitor designs
+- Tracking popular models in your niche
+- Researching what makes designs successful
+
+**Important:** Sales data for creations you don't own is **NOT available** via the Cults3D API. Tracked creations show public proxy metrics (views, downloads, likes) which correlate with popularity.
+
+All data is fetched efficiently using GraphQL API calls per update cycle (default: every 15 minutes).
 
 ## Installation
 
@@ -64,9 +71,14 @@ All data is fetched efficiently using a single GraphQL API call per update cycle
 5. Enter your API key
 6. Click **Submit**
 
-## Sensors
+### Tracking External Creations
 
-The integration creates the following sensors:
+1. Go to the integration's **Configure** options
+2. Select **Add a creation to track**
+3. Enter the Cults3D URL or slug of the creation
+4. The creation will be tracked on the next update
+
+## Sensors
 
 ### Profile Sensors
 
@@ -75,9 +87,8 @@ The integration creates the following sensors:
 | `sensor.cults3d_<username>_followers` | Number of followers | followers |
 | `sensor.cults3d_<username>_following` | Number of people you follow | following |
 | `sensor.cults3d_<username>_creations` | Total number of creations | creations |
-| `sensor.cults3d_<username>_total_views` | Total views across all designs | views |
 
-### Sales Sensors
+### Sales Sensors (Your Own Sales)
 
 | Sensor | Description | Unit |
 |--------|-------------|------|
@@ -86,13 +97,54 @@ The integration creates the following sensors:
 | `sensor.cults3d_<username>_monthly_sales_amount` | Earnings in last 30 days | EUR |
 | `sensor.cults3d_<username>_monthly_sales_count` | Sales in last 30 days | sales |
 
-### Creation Sensors
+### Creation Sensors (Your Own)
 
 | Sensor | Description | Attributes |
 |--------|-------------|------------|
-| `sensor.cults3d_<username>_latest_creation` | Most recently published design | `url`, `image_url`, `views`, `downloads`, `likes`, `sales_amount`, `sales_count` |
-| `sensor.cults3d_<username>_top_downloaded` | Most downloaded design (trending) | `url`, `image_url`, `views`, `downloads`, `likes`, `sales_amount`, `sales_count` |
-| `sensor.cults3d_<username>_most_profitable` | Highest-earning design | `url`, `image_url`, `views`, `downloads`, `likes`, `sales_amount`, `sales_count` |
+| `sensor.cults3d_<username>_latest_creation` | Most recently published | `url`, `image_url`, `views`, `downloads`, `likes`, `published_at` |
+| `sensor.cults3d_<username>_top_downloaded` | Most downloaded (trending) | `url`, `image_url`, `views`, `downloads`, `likes`, `published_at` |
+| `sensor.cults3d_<username>_top_viewed` | Most viewed | `url`, `image_url`, `views`, `downloads`, `likes`, `published_at` |
+
+### Tracked Creation Sensors (External)
+
+For each tracked creation, a sensor is created showing downloads count as the primary metric.
+
+| Attribute | Description |
+|-----------|-------------|
+| `slug` | Creation identifier |
+| `name` | Creation name |
+| `creator` | Creator's username |
+| `url` | Link to creation |
+| `views_total` | Total view count |
+| `downloads_total` | Total download count |
+| `likes_total` | Total like count |
+| `published_at` | Publication date |
+| `window_start` | Start of 30-day post-release window |
+| `window_end` | End of 30-day post-release window |
+| `is_within_30_day_window` | Whether currently in first 30 days |
+
+**Note:** All metrics are cumulative totals. The Cults3D API does not provide date-filtered statistics for individual creations. The 30-day window info is calculated from `publishedAt` but metrics cannot be filtered to that period.
+
+## API Limitations
+
+### Sales Data Availability
+- **Your own sales:** Available via the `myself` query
+- **Other creators' sales:** **NOT available** - this is an API limitation, not a bug
+
+### What We Can Track for External Creations
+Since sales data isn't available for creations you don't own, we provide these proxy metrics:
+- **Views** - How many times the page was viewed
+- **Downloads** - Free and paid downloads combined
+- **Likes** - User favorites/likes
+
+These metrics correlate with popularity but are not sales figures.
+
+### 30-Day Post-Release Window
+The integration calculates the 30-day window from `publishedAt`:
+- `window_start` = `publishedAt`
+- `window_end` = `publishedAt + 30 days`
+
+However, the metrics shown are cumulative totals, not filtered to this window, as the API doesn't support date-range queries for creation statistics.
 
 ## Example Automations
 
@@ -114,24 +166,6 @@ automation:
           message: "You made a sale! Monthly earnings: €{{ states('sensor.cults3d_username_monthly_sales_amount') }}"
 ```
 
-### Notify When Follower Count Changes
-
-```yaml
-automation:
-  - alias: "Cults3D Follower Notification"
-    trigger:
-      - platform: state
-        entity_id: sensor.cults3d_username_followers
-    condition:
-      - condition: template
-        value_template: "{{ trigger.from_state.state != trigger.to_state.state }}"
-    action:
-      - service: notify.mobile_app
-        data:
-          title: "Cults3D Update"
-          message: "You now have {{ states('sensor.cults3d_username_followers') }} followers!"
-```
-
 ### Dashboard Card Example
 
 ```yaml
@@ -146,8 +180,6 @@ cards:
         name: Following
       - entity: sensor.cults3d_username_creations
         name: Creations
-      - entity: sensor.cults3d_username_total_views
-        name: Total Views
 
   - type: entities
     title: Cults3D Earnings
@@ -168,61 +200,42 @@ cards:
         name: Latest
       - entity: sensor.cults3d_username_top_downloaded
         name: Trending
-      - entity: sensor.cults3d_username_most_profitable
-        name: Most Profitable
+      - entity: sensor.cults3d_username_top_viewed
+        name: Most Viewed
 ```
 
 ## Troubleshooting
 
 ### Invalid Authentication Error
-
 - Verify your username is your Cults3D **nickname** (shown in your profile URL), not your email
 - Ensure your API key is correct and hasn't been regenerated
 - Check that your API key has the necessary permissions
 
 ### User Not Found
-
 - Make sure you're using your exact Cults3D username (case-sensitive)
 - Verify your profile is public and accessible
 
 ### Sales Data Shows Zero
-
 - Sales data requires the `myself` GraphQL query which needs proper API authentication
-- If the full query fails, the integration falls back to public data only
 - Check the Home Assistant logs for any authentication warnings
 
 ### Rate Limiting
-
-The integration polls every 15 minutes by default to be respectful of the Cults3D API. If you experience rate limiting issues, you may need to increase the update interval by modifying `const.py`.
+The integration polls every 15 minutes by default. Cults3D enforces ~60 requests/30 seconds and ~500 requests/day.
 
 ## GraphQL Schema Notes
 
-This integration queries the Cults3D GraphQL API. The queries are defined in `coordinator.py` and can be adjusted if the schema changes:
+This integration queries the Cults3D GraphQL API at `https://cults3d.com/graphql`. The queries are defined in `coordinator.py`:
 
-```graphql
-query GetFullUserData($nick: String!, $thirtyDaysAgo: ISO8601DateTime) {
-  user(nick: $nick) {
-    nick
-    followersCount
-    followeesCount
-    creationsCount
-    viewsCount
+**Available fields on User:**
+- `nick`, `followersCount`, `followeesCount`, `creationsCount`
 
-    # Creations sorted by different criteria
-    latestCreation: creations(limit: 1, sort: BY_PUBLICATION, direction: DESC) { ... }
-    topByDownloads: creations(limit: 1, sort: BY_DOWNLOADS, direction: DESC) { ... }
-    topBySales: creations(limit: 1, sort: BY_SALES, direction: DESC) { ... }
-  }
+**Available fields on Creation:**
+- `name`, `shortUrl`, `viewsCount`, `downloadsCount`, `likesCount`, `illustrationImageUrl`, `publishedAt`
 
-  myself {
-    totalSalesAmount
-    salesCount
-    monthlySales: salesBatch(limit: 100, since: $thirtyDaysAgo) { ... }
-  }
-}
-```
+**Valid sort enums:**
+- `BY_PUBLICATION`, `BY_DOWNLOADS`, `BY_VIEWS`
 
-If you need to adjust the query for schema changes, edit the `CULTS3D_FULL_QUERY` or `CULTS3D_PUBLIC_QUERY` constants in `coordinator.py`.
+**Note:** `BY_SALES` sort and `salesCount` on Creation are NOT available in the current schema.
 
 ## Support the Project
 
