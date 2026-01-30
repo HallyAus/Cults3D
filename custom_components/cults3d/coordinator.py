@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from base64 import b64encode
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Any
 
 from aiohttp import BasicAuth, ClientError, ClientResponseError
@@ -22,32 +22,142 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 # =============================================================================
-# GraphQL Query - Easy to modify if the Cults3D schema changes
+# GraphQL Queries - Easy to modify if the Cults3D schema changes
 # =============================================================================
-# This query fetches user data by nickname (username).
-# Cults3D uses "nick" as the unique identifier for users.
-# The query bundles all needed fields in a single request.
+# These queries fetch user data and statistics from Cults3D.
 #
 # Schema notes:
-# - `user(nick: "...")` returns a User object
-# - `followersCount` / `followingCount` are integers
-# - `creationsCount` is the total number of creations
-# - `creations(limit: 1)` returns the most recent creation(s)
+# - `myself` returns authenticated user data including sales
+# - `user(nick: "...")` returns public user profile data
+# - Creations can be sorted: BY_PUBLICATION, BY_DOWNLOADS, BY_VIEWS, BY_SALES
+# - `salesBatch` provides transaction history with income
 #
 # If the schema differs, adjust field names here.
 # =============================================================================
 
-CULTS3D_USER_QUERY = """
-query GetUserData($nick: String!) {
+# Main query combining user profile, creations stats, and sales data
+# Uses `myself` for authenticated access to private data like sales
+CULTS3D_FULL_QUERY = """
+query GetFullUserData($nick: String!, $thirtyDaysAgo: ISO8601DateTime) {
   user(nick: $nick) {
     nick
     followersCount
-    followingCount
+    followeesCount
     creationsCount
-    creations(limit: 1) {
+    viewsCount
+
+    # Latest creation (most recently published)
+    latestCreation: creations(limit: 1, sort: BY_PUBLICATION, direction: DESC) {
       name
       url
-      illustration {
+      viewsCount
+      downloadsCount
+      likesCount
+      totalSalesAmount
+      salesCount
+      illustrations(limit: 1) {
+        url
+      }
+    }
+
+    # Most downloaded creation (trending)
+    topByDownloads: creations(limit: 1, sort: BY_DOWNLOADS, direction: DESC) {
+      name
+      url
+      viewsCount
+      downloadsCount
+      likesCount
+      totalSalesAmount
+      salesCount
+      illustrations(limit: 1) {
+        url
+      }
+    }
+
+    # Most profitable creation (by total sales)
+    topBySales: creations(limit: 1, sort: BY_SALES, direction: DESC) {
+      name
+      url
+      viewsCount
+      downloadsCount
+      likesCount
+      totalSalesAmount
+      salesCount
+      illustrations(limit: 1) {
+        url
+      }
+    }
+  }
+
+  myself {
+    totalSalesAmount
+    salesCount
+
+    # Monthly sales - get sales from last 30 days
+    monthlySales: salesBatch(limit: 100, since: $thirtyDaysAgo) {
+      results {
+        id
+        income
+        createdAt
+        creation {
+          name
+        }
+      }
+    }
+
+    # All-time sales count for statistics
+    allSales: salesBatch(limit: 1) {
+      totalCount
+    }
+  }
+}
+"""
+
+# Fallback query if `myself` doesn't work - uses only public user data
+CULTS3D_PUBLIC_QUERY = """
+query GetPublicUserData($nick: String!) {
+  user(nick: $nick) {
+    nick
+    followersCount
+    followeesCount
+    creationsCount
+    viewsCount
+
+    latestCreation: creations(limit: 1, sort: BY_PUBLICATION, direction: DESC) {
+      name
+      url
+      viewsCount
+      downloadsCount
+      likesCount
+      totalSalesAmount
+      salesCount
+      illustrations(limit: 1) {
+        url
+      }
+    }
+
+    topByDownloads: creations(limit: 1, sort: BY_DOWNLOADS, direction: DESC) {
+      name
+      url
+      viewsCount
+      downloadsCount
+      likesCount
+      totalSalesAmount
+      salesCount
+      illustrations(limit: 1) {
+        url
+      }
+    }
+
+    topBySales: creations(limit: 1, sort: BY_SALES, direction: DESC) {
+      name
+      url
+      viewsCount
+      downloadsCount
+      likesCount
+      totalSalesAmount
+      salesCount
+      illustrations(limit: 1) {
         url
       }
     }
@@ -55,7 +165,7 @@ query GetUserData($nick: String!) {
 }
 """
 
-# Fallback/validation query - simpler query to test authentication
+# Validation query - simpler query to test authentication
 CULTS3D_VALIDATION_QUERY = """
 query ValidateAuth($nick: String!) {
   user(nick: $nick) {
@@ -66,16 +176,69 @@ query ValidateAuth($nick: String!) {
 
 
 @dataclass
+class CreationData:
+    """Data class for a single creation."""
+
+    name: str | None = None
+    url: str | None = None
+    image_url: str | None = None
+    views_count: int = 0
+    downloads_count: int = 0
+    likes_count: int = 0
+    total_sales_amount: float = 0.0
+    sales_count: int = 0
+
+
+@dataclass
 class Cults3DData:
     """Data class for Cults3D coordinator data."""
 
-    username: str
-    followers_count: int
-    following_count: int
-    creations_count: int
-    latest_creation_name: str | None
-    latest_creation_url: str | None
-    latest_creation_image: str | None
+    username: str = ""
+
+    # Profile stats
+    followers_count: int = 0
+    following_count: int = 0
+    creations_count: int = 0
+    total_views_count: int = 0
+
+    # Sales stats (from myself query)
+    total_sales_amount: float = 0.0
+    total_sales_count: int = 0
+
+    # Monthly stats
+    monthly_sales_amount: float = 0.0
+    monthly_sales_count: int = 0
+
+    # Featured creations
+    latest_creation: CreationData = field(default_factory=CreationData)
+    top_downloaded: CreationData = field(default_factory=CreationData)
+    most_profitable: CreationData = field(default_factory=CreationData)
+
+
+def _parse_creation(creation_list: list[dict] | None) -> CreationData:
+    """Parse a creation from API response."""
+    if not creation_list:
+        return CreationData()
+
+    creation = creation_list[0]
+    url = creation.get("url", "")
+    if url and not url.startswith("http"):
+        url = f"https://cults3d.com{url}"
+
+    # Handle illustrations as an array (API returns array, not single object)
+    illustrations = creation.get("illustrations", [])
+    image_url = illustrations[0].get("url") if illustrations else None
+
+    return CreationData(
+        name=creation.get("name"),
+        url=url or None,
+        image_url=image_url,
+        views_count=creation.get("viewsCount", 0) or 0,
+        downloads_count=creation.get("downloadsCount", 0) or 0,
+        likes_count=creation.get("likesCount", 0) or 0,
+        total_sales_amount=float(creation.get("totalSalesAmount", 0) or 0),
+        sales_count=creation.get("salesCount", 0) or 0,
+    )
 
 
 class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
@@ -92,6 +255,7 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
         self._username = username
         self._api_key = api_key
         self._session = async_get_clientsession(hass)
+        self._use_full_query = True  # Try full query first, fallback to public
 
     def _get_auth(self) -> BasicAuth:
         """Get HTTP Basic Auth for API requests."""
@@ -167,40 +331,97 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
 
     async def _async_update_data(self) -> Cults3DData:
         """Fetch data from Cults3D API."""
+        # Calculate date for monthly sales filter (30 days ago)
+        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat() + "Z"
+
+        # Try full query first (includes myself for sales data)
+        if self._use_full_query:
+            try:
+                result = await self._async_execute_query(
+                    CULTS3D_FULL_QUERY,
+                    {"nick": self._username, "thirtyDaysAgo": thirty_days_ago},
+                )
+                return self._parse_full_response(result)
+            except UpdateFailed as err:
+                # If full query fails, try public query
+                _LOGGER.warning(
+                    "Full query failed, falling back to public query: %s", err
+                )
+                self._use_full_query = False
+
+        # Fallback to public query
         result = await self._async_execute_query(
-            CULTS3D_USER_QUERY,
+            CULTS3D_PUBLIC_QUERY,
             {"nick": self._username},
         )
+        return self._parse_public_response(result)
 
-        user_data = result.get("data", {}).get("user")
+    def _parse_full_response(self, result: dict[str, Any]) -> Cults3DData:
+        """Parse response from full query including myself data."""
+        data = result.get("data", {})
+        user_data = data.get("user")
+        myself_data = data.get("myself")
+
         if user_data is None:
             raise UpdateFailed(f"User '{self._username}' not found")
 
-        # Extract latest creation info
-        creations = user_data.get("creations", [])
-        latest_creation = creations[0] if creations else None
+        # Parse monthly sales
+        monthly_amount = 0.0
+        monthly_count = 0
 
-        latest_name = None
-        latest_url = None
-        latest_image = None
+        if myself_data:
+            monthly_sales = myself_data.get("monthlySales", {}).get("results", [])
+            for sale in monthly_sales:
+                income = sale.get("income", 0)
+                if income:
+                    monthly_amount += float(income)
+                    monthly_count += 1
 
-        if latest_creation:
-            latest_name = latest_creation.get("name")
-            latest_url = latest_creation.get("url")
-            # Handle the url - ensure it's a full URL
-            if latest_url and not latest_url.startswith("http"):
-                latest_url = f"https://cults3d.com{latest_url}"
-            # Get illustration URL if available
-            illustration = latest_creation.get("illustration")
-            if illustration:
-                latest_image = illustration.get("url")
+        # Get total sales count from allSales if available
+        total_sales_count = 0
+        if myself_data:
+            all_sales = myself_data.get("allSales", {})
+            total_sales_count = all_sales.get("totalCount", 0) or 0
+            # Fallback to salesCount if totalCount not available
+            if not total_sales_count:
+                total_sales_count = myself_data.get("salesCount", 0) or 0
 
         return Cults3DData(
             username=user_data.get("nick", self._username),
-            followers_count=user_data.get("followersCount", 0),
-            following_count=user_data.get("followingCount", 0),
-            creations_count=user_data.get("creationsCount", 0),
-            latest_creation_name=latest_name,
-            latest_creation_url=latest_url,
-            latest_creation_image=latest_image,
+            followers_count=user_data.get("followersCount", 0) or 0,
+            following_count=user_data.get("followeesCount", 0) or 0,
+            creations_count=user_data.get("creationsCount", 0) or 0,
+            total_views_count=user_data.get("viewsCount", 0) or 0,
+            total_sales_amount=float(myself_data.get("totalSalesAmount", 0) or 0) if myself_data else 0.0,
+            total_sales_count=total_sales_count,
+            monthly_sales_amount=monthly_amount,
+            monthly_sales_count=monthly_count,
+            latest_creation=_parse_creation(user_data.get("latestCreation")),
+            top_downloaded=_parse_creation(user_data.get("topByDownloads")),
+            most_profitable=_parse_creation(user_data.get("topBySales")),
+        )
+
+    def _parse_public_response(self, result: dict[str, Any]) -> Cults3DData:
+        """Parse response from public query (no myself data)."""
+        user_data = result.get("data", {}).get("user")
+
+        if user_data is None:
+            raise UpdateFailed(f"User '{self._username}' not found")
+
+        # For public query, we can estimate total sales from most profitable creation
+        most_profitable = _parse_creation(user_data.get("topBySales"))
+
+        return Cults3DData(
+            username=user_data.get("nick", self._username),
+            followers_count=user_data.get("followersCount", 0) or 0,
+            following_count=user_data.get("followeesCount", 0) or 0,
+            creations_count=user_data.get("creationsCount", 0) or 0,
+            total_views_count=user_data.get("viewsCount", 0) or 0,
+            total_sales_amount=0.0,  # Not available in public query
+            total_sales_count=0,  # Not available in public query
+            monthly_sales_amount=0.0,  # Not available in public query
+            monthly_sales_count=0,  # Not available in public query
+            latest_creation=_parse_creation(user_data.get("latestCreation")),
+            top_downloaded=_parse_creation(user_data.get("topByDownloads")),
+            most_profitable=most_profitable,
         )

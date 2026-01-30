@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
+    SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
@@ -18,11 +19,19 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import Cults3DConfigEntry
 from .const import (
     ATTRIBUTION,
+    CURRENCY_EUR,
     DOMAIN,
     SENSOR_CREATIONS,
     SENSOR_FOLLOWERS,
     SENSOR_FOLLOWING,
     SENSOR_LATEST_CREATION,
+    SENSOR_MONTHLY_SALES_AMOUNT,
+    SENSOR_MONTHLY_SALES_COUNT,
+    SENSOR_MOST_PROFITABLE,
+    SENSOR_TOP_DOWNLOADED,
+    SENSOR_TOTAL_SALES_AMOUNT,
+    SENSOR_TOTAL_SALES_COUNT,
+    SENSOR_TOTAL_VIEWS,
 )
 from .coordinator import Cults3DCoordinator, Cults3DData
 
@@ -36,6 +45,7 @@ class Cults3DSensorEntityDescription(SensorEntityDescription):
 
 
 SENSOR_DESCRIPTIONS: tuple[Cults3DSensorEntityDescription, ...] = (
+    # Profile stats
     Cults3DSensorEntityDescription(
         key=SENSOR_FOLLOWERS,
         translation_key=SENSOR_FOLLOWERS,
@@ -61,13 +71,92 @@ SENSOR_DESCRIPTIONS: tuple[Cults3DSensorEntityDescription, ...] = (
         value_fn=lambda data: data.creations_count,
     ),
     Cults3DSensorEntityDescription(
+        key=SENSOR_TOTAL_VIEWS,
+        translation_key=SENSOR_TOTAL_VIEWS,
+        icon="mdi:eye",
+        native_unit_of_measurement="views",
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: data.total_views_count,
+    ),
+    # Sales stats
+    Cults3DSensorEntityDescription(
+        key=SENSOR_TOTAL_SALES_AMOUNT,
+        translation_key=SENSOR_TOTAL_SALES_AMOUNT,
+        icon="mdi:currency-eur",
+        native_unit_of_measurement=CURRENCY_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: round(data.total_sales_amount, 2),
+    ),
+    Cults3DSensorEntityDescription(
+        key=SENSOR_TOTAL_SALES_COUNT,
+        translation_key=SENSOR_TOTAL_SALES_COUNT,
+        icon="mdi:cart",
+        native_unit_of_measurement="sales",
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: data.total_sales_count,
+    ),
+    Cults3DSensorEntityDescription(
+        key=SENSOR_MONTHLY_SALES_AMOUNT,
+        translation_key=SENSOR_MONTHLY_SALES_AMOUNT,
+        icon="mdi:calendar-month",
+        native_unit_of_measurement=CURRENCY_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: round(data.monthly_sales_amount, 2),
+    ),
+    Cults3DSensorEntityDescription(
+        key=SENSOR_MONTHLY_SALES_COUNT,
+        translation_key=SENSOR_MONTHLY_SALES_COUNT,
+        icon="mdi:calendar-check",
+        native_unit_of_measurement="sales",
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: data.monthly_sales_count,
+    ),
+    # Featured creations
+    Cults3DSensorEntityDescription(
         key=SENSOR_LATEST_CREATION,
         translation_key=SENSOR_LATEST_CREATION,
-        icon="mdi:cube",
-        value_fn=lambda data: data.latest_creation_name,
+        icon="mdi:new-box",
+        value_fn=lambda data: data.latest_creation.name,
         extra_attrs_fn=lambda data: {
-            "url": data.latest_creation_url,
-            "image_url": data.latest_creation_image,
+            "url": data.latest_creation.url,
+            "image_url": data.latest_creation.image_url,
+            "views": data.latest_creation.views_count,
+            "downloads": data.latest_creation.downloads_count,
+            "likes": data.latest_creation.likes_count,
+            "sales_amount": data.latest_creation.total_sales_amount,
+            "sales_count": data.latest_creation.sales_count,
+        },
+    ),
+    Cults3DSensorEntityDescription(
+        key=SENSOR_TOP_DOWNLOADED,
+        translation_key=SENSOR_TOP_DOWNLOADED,
+        icon="mdi:trending-up",
+        value_fn=lambda data: data.top_downloaded.name,
+        extra_attrs_fn=lambda data: {
+            "url": data.top_downloaded.url,
+            "image_url": data.top_downloaded.image_url,
+            "views": data.top_downloaded.views_count,
+            "downloads": data.top_downloaded.downloads_count,
+            "likes": data.top_downloaded.likes_count,
+            "sales_amount": data.top_downloaded.total_sales_amount,
+            "sales_count": data.top_downloaded.sales_count,
+        },
+    ),
+    Cults3DSensorEntityDescription(
+        key=SENSOR_MOST_PROFITABLE,
+        translation_key=SENSOR_MOST_PROFITABLE,
+        icon="mdi:cash-multiple",
+        value_fn=lambda data: data.most_profitable.name,
+        extra_attrs_fn=lambda data: {
+            "url": data.most_profitable.url,
+            "image_url": data.most_profitable.image_url,
+            "views": data.most_profitable.views_count,
+            "downloads": data.most_profitable.downloads_count,
+            "likes": data.most_profitable.likes_count,
+            "sales_amount": data.most_profitable.total_sales_amount,
+            "sales_count": data.most_profitable.sales_count,
         },
     ),
 )

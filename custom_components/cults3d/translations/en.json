@@ -41,8 +41,29 @@
       "creations": {
         "name": "Creations"
       },
+      "total_views": {
+        "name": "Total Views"
+      },
+      "total_sales_amount": {
+        "name": "Total Earnings"
+      },
+      "total_sales_count": {
+        "name": "Total Sales"
+      },
+      "monthly_sales_amount": {
+        "name": "Monthly Earnings"
+      },
+      "monthly_sales_count": {
+        "name": "Monthly Sales"
+      },
       "latest_creation": {
         "name": "Latest Creation"
+      },
+      "top_downloaded": {
+        "name": "Top Downloaded (Trending)"
+      },
+      "most_profitable": {
+        "name": "Most Profitable"
       }
     }
   }

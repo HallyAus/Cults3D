@@ -4,14 +4,26 @@
 [![GitHub Release](https://img.shields.io/github/v/release/HallyAus/Cults3D)](https://github.com/HallyAus/Cults3D/releases)
 [![License](https://img.shields.io/github/license/HallyAus/Cults3D)](LICENSE)
 
-A Home Assistant custom integration that connects to your [Cults3D](https://cults3d.com) account and provides sensors for your creator profile statistics.
+A Home Assistant custom integration that connects to your [Cults3D](https://cults3d.com) account and provides comprehensive sensors for your creator profile statistics, sales tracking, and trending models.
 
 ## Features
 
+### Profile Statistics
 - **Followers Count** - Track how many people are following you
 - **Following Count** - See how many creators you're following
 - **Creations Count** - Monitor your total number of 3D model uploads
-- **Latest Creation** - Display your most recent upload with a link to the model page
+- **Total Views** - Track total views across all your designs
+
+### Sales & Earnings
+- **Total Earnings** - Your all-time earnings from sales (EUR)
+- **Total Sales** - Number of sales across all time
+- **Monthly Earnings** - Earnings from the last 30 days (EUR)
+- **Monthly Sales** - Number of sales in the last 30 days
+
+### Featured Creations
+- **Latest Creation** - Your most recently published design
+- **Top Downloaded (Trending)** - Your most downloaded design
+- **Most Profitable** - Your highest-earning design
 
 All data is fetched efficiently using a single GraphQL API call per update cycle (default: every 15 minutes).
 
@@ -56,14 +68,51 @@ All data is fetched efficiently using a single GraphQL API call per update cycle
 
 The integration creates the following sensors:
 
+### Profile Sensors
+
+| Sensor | Description | Unit |
+|--------|-------------|------|
+| `sensor.cults3d_<username>_followers` | Number of followers | followers |
+| `sensor.cults3d_<username>_following` | Number of people you follow | following |
+| `sensor.cults3d_<username>_creations` | Total number of creations | creations |
+| `sensor.cults3d_<username>_total_views` | Total views across all designs | views |
+
+### Sales Sensors
+
+| Sensor | Description | Unit |
+|--------|-------------|------|
+| `sensor.cults3d_<username>_total_sales_amount` | All-time earnings | EUR |
+| `sensor.cults3d_<username>_total_sales_count` | All-time number of sales | sales |
+| `sensor.cults3d_<username>_monthly_sales_amount` | Earnings in last 30 days | EUR |
+| `sensor.cults3d_<username>_monthly_sales_count` | Sales in last 30 days | sales |
+
+### Creation Sensors
+
 | Sensor | Description | Attributes |
 |--------|-------------|------------|
-| `sensor.cults3d_<username>_followers` | Number of followers | - |
-| `sensor.cults3d_<username>_following` | Number of people you follow | - |
-| `sensor.cults3d_<username>_creations` | Total number of creations | - |
-| `sensor.cults3d_<username>_latest_creation` | Name of your latest creation | `url`, `image_url` |
+| `sensor.cults3d_<username>_latest_creation` | Most recently published design | `url`, `image_url`, `views`, `downloads`, `likes`, `sales_amount`, `sales_count` |
+| `sensor.cults3d_<username>_top_downloaded` | Most downloaded design (trending) | `url`, `image_url`, `views`, `downloads`, `likes`, `sales_amount`, `sales_count` |
+| `sensor.cults3d_<username>_most_profitable` | Highest-earning design | `url`, `image_url`, `views`, `downloads`, `likes`, `sales_amount`, `sales_count` |
 
 ## Example Automations
+
+### Notify on New Sale
+
+```yaml
+automation:
+  - alias: "Cults3D New Sale Notification"
+    trigger:
+      - platform: state
+        entity_id: sensor.cults3d_username_monthly_sales_count
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.state | int > trigger.from_state.state | int }}"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "New Cults3D Sale!"
+          message: "You made a sale! Monthly earnings: €{{ states('sensor.cults3d_username_monthly_sales_amount') }}"
+```
 
 ### Notify When Follower Count Changes
 
@@ -86,17 +135,41 @@ automation:
 ### Dashboard Card Example
 
 ```yaml
-type: entities
-title: Cults3D Stats
-entities:
-  - entity: sensor.cults3d_username_followers
-    name: Followers
-  - entity: sensor.cults3d_username_following
-    name: Following
-  - entity: sensor.cults3d_username_creations
-    name: Total Creations
-  - entity: sensor.cults3d_username_latest_creation
-    name: Latest Model
+type: vertical-stack
+cards:
+  - type: entities
+    title: Cults3D Profile
+    entities:
+      - entity: sensor.cults3d_username_followers
+        name: Followers
+      - entity: sensor.cults3d_username_following
+        name: Following
+      - entity: sensor.cults3d_username_creations
+        name: Creations
+      - entity: sensor.cults3d_username_total_views
+        name: Total Views
+
+  - type: entities
+    title: Cults3D Earnings
+    entities:
+      - entity: sensor.cults3d_username_total_sales_amount
+        name: Total Earnings
+      - entity: sensor.cults3d_username_total_sales_count
+        name: Total Sales
+      - entity: sensor.cults3d_username_monthly_sales_amount
+        name: Monthly Earnings
+      - entity: sensor.cults3d_username_monthly_sales_count
+        name: Monthly Sales
+
+  - type: entities
+    title: Featured Designs
+    entities:
+      - entity: sensor.cults3d_username_latest_creation
+        name: Latest
+      - entity: sensor.cults3d_username_top_downloaded
+        name: Trending
+      - entity: sensor.cults3d_username_most_profitable
+        name: Most Profitable
 ```
 
 ## Troubleshooting
@@ -112,33 +185,44 @@ entities:
 - Make sure you're using your exact Cults3D username (case-sensitive)
 - Verify your profile is public and accessible
 
+### Sales Data Shows Zero
+
+- Sales data requires the `myself` GraphQL query which needs proper API authentication
+- If the full query fails, the integration falls back to public data only
+- Check the Home Assistant logs for any authentication warnings
+
 ### Rate Limiting
 
 The integration polls every 15 minutes by default to be respectful of the Cults3D API. If you experience rate limiting issues, you may need to increase the update interval by modifying `const.py`.
 
 ## GraphQL Schema Notes
 
-This integration queries the Cults3D GraphQL API. The query is defined in `coordinator.py` and can be adjusted if the schema changes:
+This integration queries the Cults3D GraphQL API. The queries are defined in `coordinator.py` and can be adjusted if the schema changes:
 
 ```graphql
-query GetUserData($nick: String!) {
+query GetFullUserData($nick: String!, $thirtyDaysAgo: ISO8601DateTime) {
   user(nick: $nick) {
     nick
     followersCount
-    followingCount
+    followeesCount
     creationsCount
-    creations(limit: 1) {
-      name
-      url
-      illustration {
-        url
-      }
-    }
+    viewsCount
+
+    # Creations sorted by different criteria
+    latestCreation: creations(limit: 1, sort: BY_PUBLICATION, direction: DESC) { ... }
+    topByDownloads: creations(limit: 1, sort: BY_DOWNLOADS, direction: DESC) { ... }
+    topBySales: creations(limit: 1, sort: BY_SALES, direction: DESC) { ... }
+  }
+
+  myself {
+    totalSalesAmount
+    salesCount
+    monthlySales: salesBatch(limit: 100, since: $thirtyDaysAgo) { ... }
   }
 }
 ```
 
-If you need to adjust the query for schema changes, edit the `CULTS3D_USER_QUERY` constant in `coordinator.py`.
+If you need to adjust the query for schema changes, edit the `CULTS3D_FULL_QUERY` or `CULTS3D_PUBLIC_QUERY` constants in `coordinator.py`.
 
 ## Support the Project
 
