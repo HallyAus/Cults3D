@@ -24,7 +24,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: Cults3DConfigEntry) -> b
     username = entry.data[CONF_USERNAME]
     api_key = entry.data[CONF_API_KEY]
 
-    coordinator = Cults3DCoordinator(hass, username, api_key)
+    coordinator = Cults3DCoordinator(hass, entry, username, api_key)
 
     # Perform initial data fetch
     try:
@@ -41,7 +41,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: Cults3DConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Register update listener for options changes
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
+
     return True
+
+
+async def async_update_options(hass: HomeAssistant, entry: Cults3DConfigEntry) -> None:
+    """Handle options update - reload integration to pick up tracked creations changes."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Cults3DConfigEntry) -> bool:

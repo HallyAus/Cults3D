@@ -30,6 +30,38 @@
       "reauth_successful": "Re-authentication successful."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cults3D Options",
+        "menu_options": {
+          "tracked_creations": "Manage tracked creations",
+          "add_tracked_creation": "Add a creation to track"
+        }
+      },
+      "tracked_creations": {
+        "title": "Tracked Creations",
+        "description": "Currently tracking {tracked_count} creation(s). Uncheck items to remove them.",
+        "data": {
+          "tracked_list": "Tracked creations"
+        }
+      },
+      "add_tracked_creation": {
+        "title": "Add Tracked Creation",
+        "description": "Enter a Cults3D creation URL or slug to track. Note: Sales data is NOT available for creations you don't own. Only public metrics (views, downloads, likes) will be tracked.",
+        "data": {
+          "creation_url": "Creation URL or slug"
+        },
+        "data_description": {
+          "creation_url": "Full URL (e.g., https://cults3d.com/en/3d-model/...) or just the slug"
+        }
+      }
+    },
+    "error": {
+      "already_tracked": "This creation is already being tracked.",
+      "invalid_url": "Please enter a valid Cults3D URL or creation slug."
+    }
+  },
   "entity": {
     "sensor": {
       "followers": {
@@ -40,9 +72,6 @@
       },
       "creations": {
         "name": "Creations"
-      },
-      "total_views": {
-        "name": "Total Views"
       },
       "total_sales_amount": {
         "name": "Total Earnings"
@@ -62,8 +91,11 @@
       "top_downloaded": {
         "name": "Top Downloaded (Trending)"
       },
-      "most_profitable": {
-        "name": "Most Profitable"
+      "top_viewed": {
+        "name": "Top Viewed"
+      },
+      "tracked_creation": {
+        "name": "Tracked Creation"
       }
     }
   }
