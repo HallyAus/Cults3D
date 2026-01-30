@@ -36,8 +36,7 @@ _LOGGER = logging.getLogger(__name__)
 # - SaleBatch has NO totalCount field
 # =============================================================================
 
-# Main query for user profile data
-# Note: Only BY_PUBLICATION and BY_DOWNLOADS are valid sort enums
+# Query for user profile data only (public data)
 CULTS3D_USER_QUERY = """
 query GetUserData($nick: String!) {
   user(nick: $nick) {
@@ -66,7 +65,12 @@ query GetUserData($nick: String!) {
       publishedAt
     }
   }
+}
+"""
 
+# Separate query for sales data (requires authentication, may fail)
+CULTS3D_SALES_QUERY = """
+query GetMySales {
   myself {
     salesBatch(limit: 100) {
       results {
@@ -171,11 +175,12 @@ class Cults3DData:
     following_count: int = 0
     creations_count: int = 0
 
-    # Sales stats (from myself query)
+    # Sales stats (from myself query - may be unavailable)
     total_sales_amount: float = 0.0
     total_sales_count: int = 0
     monthly_sales_amount: float = 0.0
     monthly_sales_count: int = 0
+    sales_data_available: bool = False
 
     # Featured creations (only BY_PUBLICATION and BY_DOWNLOADS sorts available)
     latest_creation: CreationData = field(default_factory=CreationData)
@@ -294,7 +299,10 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
         return self.config_entry.options.get(CONF_TRACKED_CREATIONS, [])
 
     async def _async_execute_query(
-        self, query: str, variables: dict[str, Any] | None = None
+        self,
+        query: str,
+        variables: dict[str, Any] | None = None,
+        raise_on_error: bool = True,
     ) -> dict[str, Any]:
         """Execute a GraphQL query against the Cults3D API."""
         payload = {"query": query}
@@ -315,9 +323,11 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                         "Access forbidden - check your API key permissions"
                     )
                 if response.status != 200:
-                    raise UpdateFailed(
-                        f"API request failed with status {response.status}"
-                    )
+                    if raise_on_error:
+                        raise UpdateFailed(
+                            f"API request failed with status {response.status}"
+                        )
+                    return {"data": None, "errors": [{"message": f"HTTP {response.status}"}]}
 
                 data = await response.json()
 
@@ -326,8 +336,9 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                         err.get("message", "Unknown error") for err in data["errors"]
                     ]
                     error_str = "; ".join(error_messages)
-                    _LOGGER.error("GraphQL errors: %s", error_str)
-                    raise UpdateFailed(f"GraphQL error: {error_str}")
+                    _LOGGER.debug("GraphQL errors: %s", error_str)
+                    if raise_on_error:
+                        raise UpdateFailed(f"GraphQL error: {error_str}")
 
                 return data
 
@@ -336,9 +347,13 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                 raise ConfigEntryAuthFailed(
                     "Authentication failed - check your credentials"
                 ) from err
-            raise UpdateFailed(f"API request failed: {err}") from err
+            if raise_on_error:
+                raise UpdateFailed(f"API request failed: {err}") from err
+            return {"data": None, "errors": [{"message": str(err)}]}
         except ClientError as err:
-            raise UpdateFailed(f"Connection error: {err}") from err
+            if raise_on_error:
+                raise UpdateFailed(f"Connection error: {err}") from err
+            return {"data": None, "errors": [{"message": str(err)}]}
 
     async def async_validate_credentials(self) -> bool:
         """Validate the provided credentials by running a test query."""
@@ -371,34 +386,38 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
             _LOGGER.warning("Failed to fetch tracked creation %s: %s", slug, err)
             return TrackedCreationData(slug=slug)
 
-    async def _async_update_data(self) -> Cults3DData:
-        """Fetch data from Cults3D API."""
-        # Fetch main user data
-        result = await self._async_execute_query(
-            CULTS3D_USER_QUERY,
-            {"nick": self._username},
-        )
-
-        data = result.get("data", {})
-        user_data = data.get("user")
-        myself_data = data.get("myself")
-
-        if user_data is None:
-            raise UpdateFailed(f"User '{self._username}' not found")
-
-        # Parse sales data from myself
+    async def _fetch_sales_data(self) -> tuple[float, int, float, int, bool]:
+        """Fetch sales data from myself query. Returns defaults if unavailable."""
         total_sales_amount = 0.0
         total_sales_count = 0
         monthly_sales_amount = 0.0
         monthly_sales_count = 0
         thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
 
-        if myself_data:
+        try:
+            # Try to fetch sales data - this may fail for various reasons
+            result = await self._async_execute_query(
+                CULTS3D_SALES_QUERY,
+                raise_on_error=False,
+            )
+
+            if "errors" in result and result["errors"]:
+                _LOGGER.warning(
+                    "Sales data unavailable: %s",
+                    "; ".join(e.get("message", "") for e in result["errors"])
+                )
+                return 0.0, 0, 0.0, 0, False
+
+            myself_data = result.get("data", {}).get("myself")
+            if not myself_data:
+                _LOGGER.info("No sales data available (myself query returned null)")
+                return 0.0, 0, 0.0, 0, False
+
             sales_batch = myself_data.get("salesBatch", {})
             results = sales_batch.get("results", [])
 
             for sale in results:
-                # income is now { value: number } structure
+                # income is { value: number } structure
                 income_data = sale.get("income", {})
                 income_value = float(income_data.get("value", 0) or 0) if income_data else 0.0
                 total_sales_amount += income_value
@@ -417,6 +436,35 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                     except (ValueError, TypeError):
                         pass
 
+            return total_sales_amount, total_sales_count, monthly_sales_amount, monthly_sales_count, True
+
+        except Exception as err:
+            _LOGGER.warning("Failed to fetch sales data: %s", err)
+            return 0.0, 0, 0.0, 0, False
+
+    async def _async_update_data(self) -> Cults3DData:
+        """Fetch data from Cults3D API."""
+        # Fetch main user data (this must succeed)
+        result = await self._async_execute_query(
+            CULTS3D_USER_QUERY,
+            {"nick": self._username},
+        )
+
+        data = result.get("data", {})
+        user_data = data.get("user")
+
+        if user_data is None:
+            raise UpdateFailed(f"User '{self._username}' not found")
+
+        # Fetch sales data separately (optional - may fail)
+        (
+            total_sales_amount,
+            total_sales_count,
+            monthly_sales_amount,
+            monthly_sales_count,
+            sales_available,
+        ) = await self._fetch_sales_data()
+
         # Fetch tracked creations
         tracked_creations: dict[str, TrackedCreationData] = {}
         for slug in self.tracked_creation_slugs:
@@ -432,6 +480,7 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
             total_sales_count=total_sales_count,
             monthly_sales_amount=monthly_sales_amount,
             monthly_sales_count=monthly_sales_count,
+            sales_data_available=sales_available,
             latest_creation=_parse_creation(user_data.get("latestCreation")),
             top_downloaded=_parse_creation(user_data.get("topByDownloads")),
             tracked_creations=tracked_creations,
