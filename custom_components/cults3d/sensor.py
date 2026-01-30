@@ -28,7 +28,6 @@ from .const import (
     SENSOR_MONTHLY_SALES_AMOUNT,
     SENSOR_MONTHLY_SALES_COUNT,
     SENSOR_TOP_DOWNLOADED,
-    SENSOR_TOP_VIEWED,
     SENSOR_TOTAL_SALES_AMOUNT,
     SENSOR_TOTAL_SALES_COUNT,
 )
@@ -135,22 +134,6 @@ SENSOR_DESCRIPTIONS: tuple[Cults3DSensorEntityDescription, ...] = (
             "likes": data.top_downloaded.likes_count,
             "published_at": data.top_downloaded.published_at.isoformat()
             if data.top_downloaded.published_at
-            else None,
-        },
-    ),
-    Cults3DSensorEntityDescription(
-        key=SENSOR_TOP_VIEWED,
-        translation_key=SENSOR_TOP_VIEWED,
-        icon="mdi:eye-check",
-        value_fn=lambda data: data.top_viewed.name,
-        extra_attrs_fn=lambda data: {
-            "url": data.top_viewed.url,
-            "image_url": data.top_viewed.image_url,
-            "views": data.top_viewed.views_count,
-            "downloads": data.top_viewed.downloads_count,
-            "likes": data.top_viewed.likes_count,
-            "published_at": data.top_viewed.published_at.isoformat()
-            if data.top_viewed.published_at
             else None,
         },
     ),

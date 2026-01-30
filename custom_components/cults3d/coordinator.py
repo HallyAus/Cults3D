@@ -31,23 +31,13 @@ _LOGGER = logging.getLogger(__name__)
 # - User type: nick, followersCount, followeesCount, creationsCount (NO viewsCount)
 # - Creation type: name, shortUrl, viewsCount, downloadsCount, likesCount,
 #                  illustrationImageUrl, publishedAt (NO salesCount on Creation)
-# - Money type requires selections: totalSalesAmount { value currency }
-# - Valid sort enums: BY_PUBLICATION, BY_DOWNLOADS, BY_VIEWS (NO BY_SALES)
-# - illustrations field: no limit arg, use imageUrl not url
+# - Money type requires selections: income { value } or similar
+# - Valid sort enums: BY_PUBLICATION, BY_DOWNLOADS (NO BY_VIEWS, NO BY_SALES)
+# - SaleBatch has NO totalCount field
 # =============================================================================
 
-# Fragment for creation fields to avoid repetition
-CREATION_FIELDS = """
-  name
-  shortUrl
-  viewsCount
-  downloadsCount
-  likesCount
-  illustrationImageUrl
-  publishedAt
-"""
-
-# Main query for user profile data (public data only - no myself for sales)
+# Main query for user profile data
+# Note: Only BY_PUBLICATION and BY_DOWNLOADS are valid sort enums
 CULTS3D_USER_QUERY = """
 query GetUserData($nick: String!) {
   user(nick: $nick) {
@@ -75,23 +65,14 @@ query GetUserData($nick: String!) {
       illustrationImageUrl
       publishedAt
     }
-
-    topByViews: creations(limit: 1, sort: BY_VIEWS, direction: DESC) {
-      name
-      shortUrl
-      viewsCount
-      downloadsCount
-      likesCount
-      illustrationImageUrl
-      publishedAt
-    }
   }
 
   myself {
     salesBatch(limit: 100) {
-      totalCount
       results {
-        income(currency: EUR)
+        income {
+          value
+        }
         createdAt
       }
     }
@@ -196,10 +177,9 @@ class Cults3DData:
     monthly_sales_amount: float = 0.0
     monthly_sales_count: int = 0
 
-    # Featured creations
+    # Featured creations (only BY_PUBLICATION and BY_DOWNLOADS sorts available)
     latest_creation: CreationData = field(default_factory=CreationData)
     top_downloaded: CreationData = field(default_factory=CreationData)
-    top_viewed: CreationData = field(default_factory=CreationData)
 
     # Tracked external creations
     tracked_creations: dict[str, TrackedCreationData] = field(default_factory=dict)
@@ -415,12 +395,14 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
 
         if myself_data:
             sales_batch = myself_data.get("salesBatch", {})
-            total_sales_count = sales_batch.get("totalCount", 0) or 0
             results = sales_batch.get("results", [])
 
             for sale in results:
-                income = sale.get("income", 0) or 0
-                total_sales_amount += float(income)
+                # income is now { value: number } structure
+                income_data = sale.get("income", {})
+                income_value = float(income_data.get("value", 0) or 0) if income_data else 0.0
+                total_sales_amount += income_value
+                total_sales_count += 1
 
                 # Check if sale is within last 30 days
                 created_at_str = sale.get("createdAt")
@@ -430,7 +412,7 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                             created_at_str.replace("Z", "+00:00")
                         )
                         if created_at >= thirty_days_ago:
-                            monthly_sales_amount += float(income)
+                            monthly_sales_amount += income_value
                             monthly_sales_count += 1
                     except (ValueError, TypeError):
                         pass
@@ -452,6 +434,5 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
             monthly_sales_count=monthly_sales_count,
             latest_creation=_parse_creation(user_data.get("latestCreation")),
             top_downloaded=_parse_creation(user_data.get("topByDownloads")),
-            top_viewed=_parse_creation(user_data.get("topByViews")),
             tracked_creations=tracked_creations,
         )
