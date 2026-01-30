@@ -28,9 +28,9 @@ SENSOR_MONTHLY_SALES_AMOUNT: Final = "monthly_sales_amount"
 SENSOR_MONTHLY_SALES_COUNT: Final = "monthly_sales_count"
 
 # Sensor types - Featured creations (own)
+# Note: Only BY_PUBLICATION and BY_DOWNLOADS sorts are available in the API
 SENSOR_LATEST_CREATION: Final = "latest_creation"
 SENSOR_TOP_DOWNLOADED: Final = "top_downloaded"
-SENSOR_TOP_VIEWED: Final = "top_viewed"
 
 # Sensor types - Tracked creations (external)
 SENSOR_TRACKED_CREATION: Final = "tracked_creation"

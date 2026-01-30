@@ -22,7 +22,6 @@ A Home Assistant custom integration that connects to your [Cults3D](https://cult
 ### Featured Creations (Your Own)
 - **Latest Creation** - Your most recently published design
 - **Top Downloaded (Trending)** - Your most downloaded design
-- **Top Viewed** - Your most viewed design
 
 ### Tracked Creations (External)
 Track any Cults3D creation to monitor its popularity metrics. Useful for:
@@ -103,7 +102,6 @@ All data is fetched efficiently using GraphQL API calls per update cycle (defaul
 |--------|-------------|------------|
 | `sensor.cults3d_<username>_latest_creation` | Most recently published | `url`, `image_url`, `views`, `downloads`, `likes`, `published_at` |
 | `sensor.cults3d_<username>_top_downloaded` | Most downloaded (trending) | `url`, `image_url`, `views`, `downloads`, `likes`, `published_at` |
-| `sensor.cults3d_<username>_top_viewed` | Most viewed | `url`, `image_url`, `views`, `downloads`, `likes`, `published_at` |
 
 ### Tracked Creation Sensors (External)
 
@@ -200,8 +198,6 @@ cards:
         name: Latest
       - entity: sensor.cults3d_username_top_downloaded
         name: Trending
-      - entity: sensor.cults3d_username_top_viewed
-        name: Most Viewed
 ```
 
 ## Troubleshooting
@@ -233,9 +229,12 @@ This integration queries the Cults3D GraphQL API at `https://cults3d.com/graphql
 - `name`, `shortUrl`, `viewsCount`, `downloadsCount`, `likesCount`, `illustrationImageUrl`, `publishedAt`
 
 **Valid sort enums:**
-- `BY_PUBLICATION`, `BY_DOWNLOADS`, `BY_VIEWS`
+- `BY_PUBLICATION`, `BY_DOWNLOADS`
 
-**Note:** `BY_SALES` sort and `salesCount` on Creation are NOT available in the current schema.
+**Money type:**
+- `income { value }` - returns numeric value in EUR
+
+**Note:** `BY_VIEWS`, `BY_SALES` sorts and `salesCount`/`totalCount` fields are NOT available in the current schema.
 
 ## Support the Project
 
