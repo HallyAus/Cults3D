@@ -37,6 +37,7 @@ _LOGGER = logging.getLogger(__name__)
 # =============================================================================
 
 # Query for user profile data only (public data)
+# Using minimal fields first to avoid schema issues
 CULTS3D_USER_QUERY = """
 query GetUserData($nick: String!) {
   user(nick: $nick) {
@@ -44,18 +45,15 @@ query GetUserData($nick: String!) {
     followersCount
     followeesCount
     creationsCount
+  }
+}
+"""
 
-    latestCreation: creations(limit: 1, sort: BY_PUBLICATION, direction: DESC) {
-      name
-      shortUrl
-      viewsCount
-      downloadsCount
-      likesCount
-      illustrationImageUrl
-      publishedAt
-    }
-
-    topByDownloads: creations(limit: 1, sort: BY_DOWNLOADS, direction: DESC) {
+# Separate query for user creations (may have different field requirements)
+CULTS3D_CREATIONS_QUERY = """
+query GetUserCreations($nick: String!) {
+  user(nick: $nick) {
+    latestCreation: creations(limit: 1) {
       name
       shortUrl
       viewsCount
@@ -309,6 +307,10 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
         if variables:
             payload["variables"] = variables
 
+        # Log query for debugging (first line only to identify which query)
+        query_first_line = query.strip().split("\n")[0]
+        _LOGGER.debug("Executing GraphQL query: %s", query_first_line)
+
         try:
             async with self._session.post(
                 CULTS3D_GRAPHQL_ENDPOINT,
@@ -316,6 +318,8 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                 auth=self._get_auth(),
                 headers={"Content-Type": "application/json"},
             ) as response:
+                _LOGGER.debug("Response status: %s", response.status)
+
                 if response.status == 401:
                     raise ConfigEntryAuthFailed("Invalid username or API key")
                 if response.status == 403:
@@ -330,13 +334,14 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                     return {"data": None, "errors": [{"message": f"HTTP {response.status}"}]}
 
                 data = await response.json()
+                _LOGGER.debug("Response data keys: %s", list(data.keys()) if data else "None")
 
                 if "errors" in data and data["errors"]:
                     error_messages = [
                         err.get("message", "Unknown error") for err in data["errors"]
                     ]
                     error_str = "; ".join(error_messages)
-                    _LOGGER.debug("GraphQL errors: %s", error_str)
+                    _LOGGER.warning("GraphQL errors for query %s: %s", query_first_line, error_str)
                     if raise_on_error:
                         raise UpdateFailed(f"GraphQL error: {error_str}")
 
@@ -442,8 +447,40 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
             _LOGGER.warning("Failed to fetch sales data: %s", err)
             return 0.0, 0, 0.0, 0, False
 
+    async def _fetch_creations_data(self) -> tuple[CreationData, CreationData]:
+        """Fetch user creations data. Returns defaults if unavailable."""
+        try:
+            result = await self._async_execute_query(
+                CULTS3D_CREATIONS_QUERY,
+                {"nick": self._username},
+                raise_on_error=False,
+            )
+
+            if "errors" in result and result["errors"]:
+                _LOGGER.warning(
+                    "Creations data unavailable: %s",
+                    "; ".join(e.get("message", "") for e in result["errors"])
+                )
+                return CreationData(), CreationData()
+
+            user_data = result.get("data", {}).get("user")
+            if not user_data:
+                return CreationData(), CreationData()
+
+            latest = _parse_creation(user_data.get("latestCreation"))
+            # For now, use the same as latest since we removed sorting
+            top_downloaded = latest
+
+            return latest, top_downloaded
+
+        except Exception as err:
+            _LOGGER.warning("Failed to fetch creations data: %s", err)
+            return CreationData(), CreationData()
+
     async def _async_update_data(self) -> Cults3DData:
         """Fetch data from Cults3D API."""
+        _LOGGER.debug("Starting Cults3D data update for user: %s", self._username)
+
         # Fetch main user data (this must succeed)
         result = await self._async_execute_query(
             CULTS3D_USER_QUERY,
@@ -455,6 +492,11 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
 
         if user_data is None:
             raise UpdateFailed(f"User '{self._username}' not found")
+
+        _LOGGER.debug("User data fetched successfully: %s", user_data.get("nick"))
+
+        # Fetch creations data separately (optional - may fail)
+        latest_creation, top_downloaded = await self._fetch_creations_data()
 
         # Fetch sales data separately (optional - may fail)
         (
@@ -481,7 +523,7 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
             monthly_sales_amount=monthly_sales_amount,
             monthly_sales_count=monthly_sales_count,
             sales_data_available=sales_available,
-            latest_creation=_parse_creation(user_data.get("latestCreation")),
-            top_downloaded=_parse_creation(user_data.get("topByDownloads")),
+            latest_creation=latest_creation,
+            top_downloaded=top_downloaded,
             tracked_creations=tracked_creations,
         )
