@@ -396,7 +396,12 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
             return TrackedCreationData(slug=slug)
 
     async def _fetch_sales_data(self) -> tuple[float, int, float, int, bool]:
-        """Fetch sales data from myself query with pagination. Returns defaults if unavailable."""
+        """Fetch sales data from myself query. Returns defaults if unavailable.
+
+        Note: Total sales COUNT is accurate (from salesBatch.total).
+        Total EARNINGS is sum of most recent 100 sales only (API rate limit constraint).
+        For full earnings, would need pagination which triggers rate limiting.
+        """
         total_sales_amount = 0.0
         total_sales_count = 0
         monthly_sales_amount = 0.0
@@ -404,78 +409,55 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
         thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
 
         try:
-            # Paginate through all sales (API limits to 100 per request)
-            offset = 0
-            limit = 100
-            all_sales_fetched = False
-            fetched_count = 0
+            # Fetch sales data - single request to avoid rate limiting
+            result = await self._async_execute_query(
+                CULTS3D_SALES_QUERY,
+                {"limit": 100, "offset": 0},
+                raise_on_error=False,
+            )
 
-            while not all_sales_fetched:
-                result = await self._async_execute_query(
-                    CULTS3D_SALES_QUERY,
-                    {"limit": limit, "offset": offset},
-                    raise_on_error=False,
+            if "errors" in result and result["errors"]:
+                _LOGGER.warning(
+                    "Sales data unavailable: %s",
+                    "; ".join(e.get("message", "") for e in result["errors"])
                 )
+                return 0.0, 0, 0.0, 0, False
 
-                if "errors" in result and result["errors"]:
-                    _LOGGER.warning(
-                        "Sales data unavailable: %s",
-                        "; ".join(e.get("message", "") for e in result["errors"])
-                    )
-                    return 0.0, 0, 0.0, 0, False
+            myself_data = result.get("data", {}).get("myself")
+            if not myself_data:
+                _LOGGER.info("No sales data available (myself query returned null)")
+                return 0.0, 0, 0.0, 0, False
 
-                myself_data = result.get("data", {}).get("myself")
-                if not myself_data:
-                    _LOGGER.info("No sales data available (myself query returned null)")
-                    return 0.0, 0, 0.0, 0, False
+            sales_batch = myself_data.get("salesBatch", {})
 
-                sales_batch = myself_data.get("salesBatch", {})
+            # Total count from salesBatch.total (accurate for ALL sales)
+            total_sales_count = sales_batch.get("total", 0) or 0
 
-                # Get total count from first request
-                if offset == 0:
-                    total_sales_count = sales_batch.get("total", 0) or 0
-                    _LOGGER.debug("Total sales to fetch: %d", total_sales_count)
+            # Process sales results (limited to 100 most recent)
+            results = sales_batch.get("results", [])
+            for sale in results:
+                income_data = sale.get("income", {})
+                income_value = float(income_data.get("value", 0) or 0) if income_data else 0.0
+                total_sales_amount += income_value
 
-                results = sales_batch.get("results", [])
-                if not results:
-                    break
-
-                # Process this batch of sales
-                for sale in results:
-                    income_data = sale.get("income", {})
-                    income_value = float(income_data.get("value", 0) or 0) if income_data else 0.0
-                    total_sales_amount += income_value
-                    fetched_count += 1
-
-                    # Check if sale is within last 30 days for monthly stats
-                    created_at_str = sale.get("createdAt")
-                    if created_at_str:
-                        try:
-                            created_at = datetime.fromisoformat(
-                                created_at_str.replace("Z", "+00:00")
-                            )
-                            if created_at >= thirty_days_ago:
-                                monthly_sales_amount += income_value
-                                monthly_sales_count += 1
-                        except (ValueError, TypeError):
-                            pass
-
-                # Check if we've fetched all sales
-                offset += limit
-                if offset >= total_sales_count or len(results) < limit:
-                    all_sales_fetched = True
-
-                _LOGGER.debug(
-                    "Fetched sales batch: offset=%d, got=%d, total_so_far=%d",
-                    offset - limit,
-                    len(results),
-                    fetched_count,
-                )
+                # Check if sale is within last 30 days for monthly stats
+                created_at_str = sale.get("createdAt")
+                if created_at_str:
+                    try:
+                        created_at = datetime.fromisoformat(
+                            created_at_str.replace("Z", "+00:00")
+                        )
+                        if created_at >= thirty_days_ago:
+                            monthly_sales_amount += income_value
+                            monthly_sales_count += 1
+                    except (ValueError, TypeError):
+                        pass
 
             _LOGGER.debug(
-                "Sales complete: total_count=%d, earnings=%.2f, monthly=%.2f (%d sales)",
+                "Sales: count=%d (accurate), earnings=%.2f (from %d recent), monthly=%.2f (%d)",
                 total_sales_count,
                 total_sales_amount,
+                len(results),
                 monthly_sales_amount,
                 monthly_sales_count,
             )
