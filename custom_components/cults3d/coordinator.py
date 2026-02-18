@@ -69,11 +69,11 @@ query GetUserCreations($nick: String!) {
 
 # Separate query for sales data (requires authentication, may fail)
 # - salesBatch.total gives accurate count of all sales
-# - results are used to sum earnings (limited, so may be approximate for high-volume sellers)
+# - results limited to 100 by API, so earnings is from most recent 100 sales only
 CULTS3D_SALES_QUERY = """
 query GetMySales {
   myself {
-    salesBatch(limit: 1000) {
+    salesBatch(limit: 100) {
       total
       results {
         income {
