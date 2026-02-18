@@ -3,7 +3,7 @@
 # ============================================================================
 #
 # SETUP INSTRUCTIONS:
-#   1. Replace ALL instances of "USERNAME" below with your Cults3D username
+#   1. Replace ALL instances of "printforgeau" below with your Cults3D username
 #      (lowercase, as it appears in your entity IDs).
 #      Tip: Go to Developer Tools > States and search "cults3d" to find
 #      your exact entity IDs.
@@ -13,12 +13,6 @@
 #      - Choose "New dashboard from scratch"
 #      - Edit dashboard > Raw configuration editor (three dots menu)
 #      - Paste this YAML and save
-#
-#   3. Optional HACS frontend cards for the best experience:
-#      - mushroom (mushroom-entity-card, mushroom-template-card)
-#      - mini-graph-card
-#      - If you don't have these, the dashboard still works with
-#        standard HA cards.
 #
 # ============================================================================
 
@@ -38,16 +32,15 @@ views:
         cards:
           - type: markdown
             content: >-
-              # 🎨 Cults3D Creator Dashboard
+              # Cults3D Creator Dashboard
 
-              **Profile:**
-              [{{ state_attr('sensor.cults3d_USERNAME_latest_creation', 'friendly_name').split('(')[1].split(')')[0] if state_attr('sensor.cults3d_USERNAME_latest_creation', 'friendly_name') else 'USERNAME' }}](https://cults3d.com/en/users/USERNAME)
-              &nbsp; | &nbsp;
-              {{ states('sensor.cults3d_USERNAME_creations') }} creations
-              &nbsp; | &nbsp;
-              {{ states('sensor.cults3d_USERNAME_followers') }} followers
-              &nbsp; | &nbsp;
-              {{ states('sensor.cults3d_USERNAME_following') }} following
+              **Profile:** [PrintforgeAU](https://cults3d.com/en/users/PrintforgeAU)
+              |
+              {{ states('sensor.cults3d_printforgeau_creations') }} creations
+              |
+              {{ states('sensor.cults3d_printforgeau_followers') }} followers
+              |
+              {{ states('sensor.cults3d_printforgeau_following') }} following
 
       # ================================================================
       # ROW 2: Key Metrics (KPI Cards)
@@ -61,19 +54,19 @@ views:
             icon: mdi:account
 
           - type: tile
-            entity: sensor.cults3d_USERNAME_followers
+            entity: sensor.cults3d_printforgeau_followers
             name: Followers
             icon: mdi:account-multiple
             color: blue
 
           - type: tile
-            entity: sensor.cults3d_USERNAME_following
+            entity: sensor.cults3d_printforgeau_following
             name: Following
             icon: mdi:account-multiple-outline
             color: cyan
 
           - type: tile
-            entity: sensor.cults3d_USERNAME_creations
+            entity: sensor.cults3d_printforgeau_creations
             name: Total Creations
             icon: mdi:cube-outline
             color: purple
@@ -87,25 +80,25 @@ views:
             icon: mdi:cash-register
 
           - type: tile
-            entity: sensor.cults3d_USERNAME_total_earnings
+            entity: sensor.cults3d_printforgeau_total_earnings
             name: Lifetime Revenue
             icon: mdi:currency-eur
             color: green
 
           - type: tile
-            entity: sensor.cults3d_USERNAME_total_sales
+            entity: sensor.cults3d_printforgeau_total_sales
             name: Lifetime Sales
             icon: mdi:cart-check
             color: teal
 
           - type: tile
-            entity: sensor.cults3d_USERNAME_monthly_earnings
+            entity: sensor.cults3d_printforgeau_monthly_earnings
             name: Monthly Revenue
             icon: mdi:calendar-month
             color: amber
 
           - type: tile
-            entity: sensor.cults3d_USERNAME_monthly_sales
+            entity: sensor.cults3d_printforgeau_monthly_sales
             name: Monthly Sales
             icon: mdi:calendar-check
             color: orange
@@ -121,31 +114,21 @@ views:
             heading_style: title
             icon: mdi:chart-line
 
-          - type: statistics-graph
+          - type: history-graph
             entities:
-              - entity: sensor.cults3d_USERNAME_total_earnings
+              - entity: sensor.cults3d_printforgeau_total_earnings
                 name: Total Revenue
-              - entity: sensor.cults3d_USERNAME_monthly_earnings
+              - entity: sensor.cults3d_printforgeau_monthly_earnings
                 name: Monthly Revenue
-            stat_types:
-              - state
-              - mean
-            days_to_show: 30
-            period: day
-            chart_type: line
+            hours_to_show: 168
 
-          - type: statistics-graph
+          - type: history-graph
             entities:
-              - entity: sensor.cults3d_USERNAME_total_sales
+              - entity: sensor.cults3d_printforgeau_total_sales
                 name: Total Sales
-              - entity: sensor.cults3d_USERNAME_monthly_sales
+              - entity: sensor.cults3d_printforgeau_monthly_sales
                 name: Monthly Sales
-            stat_types:
-              - state
-              - mean
-            days_to_show: 30
-            period: day
-            chart_type: bar
+            hours_to_show: 168
 
       # ================================================================
       # ROW 3 (cont): Profile Growth Charts
@@ -158,17 +141,13 @@ views:
             heading_style: title
             icon: mdi:trending-up
 
-          - type: statistics-graph
+          - type: history-graph
             entities:
-              - entity: sensor.cults3d_USERNAME_followers
+              - entity: sensor.cults3d_printforgeau_followers
                 name: Followers
-              - entity: sensor.cults3d_USERNAME_creations
+              - entity: sensor.cults3d_printforgeau_creations
                 name: Creations
-            stat_types:
-              - state
-            days_to_show: 30
-            period: day
-            chart_type: line
+            hours_to_show: 168
 
       # ================================================================
       # ROW 4: Featured Creations
@@ -183,7 +162,7 @@ views:
 
           - type: markdown
             content: >-
-              {% set entity = 'sensor.cults3d_USERNAME_latest_creation' %}
+              {% set entity = 'sensor.cults3d_printforgeau_latest_creation' %}
               {% set name = states(entity) %}
               {% set url = state_attr(entity, 'url') %}
               {% set image = state_attr(entity, 'image_url') %}
@@ -196,7 +175,7 @@ views:
               ![{{ name }}]({{ image }})
               {% endif %}
 
-              ### {{ name or 'No creations yet' }}
+              ### {{ name[:50] ~ '...' if name|length > 50 else name }}
 
               {% if url %}[View on Cults3D]({{ url }}){% endif %}
 
@@ -204,9 +183,9 @@ views:
 
               | Metric | Count |
               |--------|-------|
-              | 👁️ Views | {{ views or 0 }} |
-              | ⬇️ Downloads | {{ downloads or 0 }} |
-              | ❤️ Likes | {{ likes or 0 }} |
+              | Views | {{ views | default(0) }} |
+              | Downloads | {{ downloads | default(0) }} |
+              | Likes | {{ likes | default(0) }} |
 
               {% if published %}
               *Published: {{ as_timestamp(published) | timestamp_custom('%B %d, %Y') }}*
@@ -223,7 +202,7 @@ views:
 
           - type: markdown
             content: >-
-              {% set entity = 'sensor.cults3d_USERNAME_top_downloaded' %}
+              {% set entity = 'sensor.cults3d_printforgeau_top_downloaded_trending' %}
               {% set name = states(entity) %}
               {% set url = state_attr(entity, 'url') %}
               {% set image = state_attr(entity, 'image_url') %}
@@ -236,7 +215,7 @@ views:
               ![{{ name }}]({{ image }})
               {% endif %}
 
-              ### {{ name or 'No creations yet' }}
+              ### {{ name[:50] ~ '...' if name|length > 50 else name }}
 
               {% if url %}[View on Cults3D]({{ url }}){% endif %}
 
@@ -244,9 +223,9 @@ views:
 
               | Metric | Count |
               |--------|-------|
-              | 👁️ Views | {{ views or 0 }} |
-              | ⬇️ Downloads | {{ downloads or 0 }} |
-              | ❤️ Likes | {{ likes or 0 }} |
+              | Views | {{ views | default(0) }} |
+              | Downloads | {{ downloads | default(0) }} |
+              | Likes | {{ likes | default(0) }} |
 
               {% if published %}
               *Published: {{ as_timestamp(published) | timestamp_custom('%B %d, %Y') }}*
@@ -266,95 +245,57 @@ views:
 
           - type: markdown
             content: >-
-              {% set monthly_rev = states('sensor.cults3d_USERNAME_monthly_earnings') | float(0) %}
-              {% set monthly_sales = states('sensor.cults3d_USERNAME_monthly_sales') | int(0) %}
-              {% set total_rev = states('sensor.cults3d_USERNAME_total_earnings') | float(0) %}
-              {% set total_sales = states('sensor.cults3d_USERNAME_total_sales') | int(0) %}
+              {% set monthly_rev = states('sensor.cults3d_printforgeau_monthly_earnings') | float(0) %}
+              {% set monthly_sales = states('sensor.cults3d_printforgeau_monthly_sales') | int(0) %}
+              {% set total_rev = states('sensor.cults3d_printforgeau_total_earnings') | float(0) %}
+              {% set total_sales = states('sensor.cults3d_printforgeau_total_sales') | int(0) %}
               {% set avg_price = (monthly_rev / monthly_sales) | round(2) if monthly_sales > 0 else 0 %}
               {% set total_avg = (total_rev / total_sales) | round(2) if total_sales > 0 else 0 %}
 
               | | This Month | All Time |
               |---|---|---|
-              | **Revenue** | €{{ monthly_rev | round(2) }} | €{{ total_rev | round(2) }} |
+              | **Revenue** | {{ monthly_rev | round(2) }} EUR | {{ total_rev | round(2) }} EUR |
               | **Sales** | {{ monthly_sales }} | {{ total_sales }} |
-              | **Avg. Sale** | €{{ avg_price }} | €{{ total_avg }} |
+              | **Avg. Sale** | {{ avg_price }} EUR | {{ total_avg }} EUR |
 
               {% if monthly_sales > 0 %}
-              > 📈 Averaging **€{{ (monthly_rev / 30) | round(2) }}/day** this month
+              > Averaging **{{ (monthly_rev / 30) | round(2) }} EUR/day** this month
               {% else %}
               > No sales recorded this month yet
               {% endif %}
 
   # ====================================================================
-  # VIEW 2: Tracked Creations (Competitor Analysis)
+  # VIEW 2: All Entities
   # ====================================================================
-  - title: Tracked Creations
-    path: tracked
-    icon: mdi:chart-timeline-variant
+  - title: All Sensors
+    path: sensors
+    icon: mdi:format-list-bulleted
     type: sections
-    max_columns: 3
+    max_columns: 2
     sections:
       - type: grid
-        column_span: 3
+        column_span: 2
         cards:
-          - type: markdown
-            content: >-
-              # 🔍 Tracked Creations
+          - type: entities
+            title: Profile Stats
+            entities:
+              - entity: sensor.cults3d_printforgeau_followers
+              - entity: sensor.cults3d_printforgeau_following
+              - entity: sensor.cults3d_printforgeau_creations
 
-              Monitor other creators' designs and their performance metrics.
-              Add creations to track via **Settings > Devices > Cults3D > Configure**.
+          - type: entities
+            title: Sales & Earnings
+            entities:
+              - entity: sensor.cults3d_printforgeau_total_earnings
+              - entity: sensor.cults3d_printforgeau_total_sales
+              - entity: sensor.cults3d_printforgeau_monthly_earnings
+              - entity: sensor.cults3d_printforgeau_monthly_sales
 
-              > **Note:** Sales data for non-owned creations is **not available**
-              > via the Cults3D API. Downloads, views, and likes are shown as
-              > proxy metrics for popularity.
-
-          # ----------------------------------------------------------------
-          # Tracked creations will appear here automatically.
-          # Each tracked creation gets its own sensor entity named:
-          #   sensor.cults3d_tracked_creations_tracked_SLUG
-          #
-          # Add markdown cards below for each tracked creation you add.
-          # Here's a template you can copy for each tracked creation:
-          # ----------------------------------------------------------------
-
-          # TEMPLATE: Copy this block for each tracked creation
-          # Replace ENTITY_ID with your tracked creation's entity ID
-          # (check Developer Tools > States for the exact entity ID)
-          #
-          # - type: markdown
-          #   content: >-
-          #     {% set entity = 'sensor.ENTITY_ID' %}
-          #     {% set name = state_attr(entity, 'name') %}
-          #     {% set creator = state_attr(entity, 'creator') %}
-          #     {% set url = state_attr(entity, 'url') %}
-          #     {% set image = state_attr(entity, 'image_url') %}
-          #     {% set views = state_attr(entity, 'views_total') %}
-          #     {% set downloads = state_attr(entity, 'downloads_total') %}
-          #     {% set likes = state_attr(entity, 'likes_total') %}
-          #     {% set in_window = state_attr(entity, 'is_within_30_day_window') %}
-          #     {% set window_end = state_attr(entity, 'window_end') %}
-          #     {% set published = state_attr(entity, 'published_at') %}
-          #
-          #     {% if image %}
-          #     ![{{ name }}]({{ image }})
-          #     {% endif %}
-          #
-          #     ### {{ name or 'Unknown' }}
-          #     **By:** {{ creator or 'Unknown' }}
-          #     {% if url %}| [View on Cults3D]({{ url }}){% endif %}
-          #
-          #     | Metric | Total |
-          #     |--------|-------|
-          #     | 👁️ Views | {{ views or 0 }} |
-          #     | ⬇️ Downloads | {{ downloads or 0 }} |
-          #     | ❤️ Likes | {{ likes or 0 }} |
-          #
-          #     {% if in_window %}
-          #     🟢 **Within 30-day launch window**
-          #     (ends {{ as_timestamp(window_end) | timestamp_custom('%B %d, %Y') }})
-          #     {% else %}
-          #     🔴 **30-day launch window closed**
-          #     {% endif %}
+          - type: entities
+            title: Featured Creations
+            entities:
+              - entity: sensor.cults3d_printforgeau_latest_creation
+              - entity: sensor.cults3d_printforgeau_top_downloaded_trending
 
   # ====================================================================
   # VIEW 3: Automations & Tools
@@ -370,20 +311,20 @@ views:
         cards:
           - type: markdown
             content: >-
-              # ⚡ Automation Ideas
+              # Automation Ideas
 
               Here are some automation ideas you can set up in Home Assistant
               using your Cults3D sensors:
 
 
-              ### 📬 New Sale Notification
+              ### New Sale Notification
 
               ```yaml
               automation:
                 - alias: "Cults3D New Sale"
                   trigger:
                     - platform: state
-                      entity_id: sensor.cults3d_USERNAME_total_sales
+                      entity_id: sensor.cults3d_printforgeau_total_sales
                   condition:
                     - condition: template
                       value_template: >
@@ -391,14 +332,14 @@ views:
                   action:
                     - service: notify.mobile_app_YOUR_PHONE
                       data:
-                        title: "💰 New Cults3D Sale!"
+                        title: "New Cults3D Sale!"
                         message: >
-                          You made a sale! Monthly total: €{{ states('sensor.cults3d_USERNAME_monthly_earnings') }}
+                          You made a sale! Monthly total: {{ states('sensor.cults3d_printforgeau_monthly_earnings') }} EUR
                         data:
-                          url: "https://cults3d.com/en/users/USERNAME/sales"
+                          url: "https://cults3d.com/en/users/PrintforgeAU/sales"
               ```
 
-              ### 📊 Daily Sales Report
+              ### Daily Sales Report
 
               ```yaml
               automation:
@@ -409,36 +350,35 @@ views:
                   action:
                     - service: notify.mobile_app_YOUR_PHONE
                       data:
-                        title: "📊 Cults3D Daily Report"
+                        title: "Cults3D Daily Report"
                         message: >
-                          Followers: {{ states('sensor.cults3d_USERNAME_followers') }}
-                          Monthly Sales: {{ states('sensor.cults3d_USERNAME_monthly_sales') }}
-                          Monthly Revenue: €{{ states('sensor.cults3d_USERNAME_monthly_earnings') }}
-                          Latest: {{ states('sensor.cults3d_USERNAME_latest_creation') }}
+                          Followers: {{ states('sensor.cults3d_printforgeau_followers') }}
+                          Monthly Sales: {{ states('sensor.cults3d_printforgeau_monthly_sales') }}
+                          Monthly Revenue: {{ states('sensor.cults3d_printforgeau_monthly_earnings') }} EUR
+                          Latest: {{ states('sensor.cults3d_printforgeau_latest_creation')[:40] }}
               ```
 
-              ### 🎉 Follower Milestone
+              ### Follower Milestone
 
               ```yaml
               automation:
                 - alias: "Cults3D Follower Milestone"
                   trigger:
                     - platform: numeric_state
-                      entity_id: sensor.cults3d_USERNAME_followers
-                      above: 100  # Change to your target
+                      entity_id: sensor.cults3d_printforgeau_followers
+                      above: 100
                   action:
                     - service: notify.mobile_app_YOUR_PHONE
                       data:
-                        title: "🎉 Milestone Reached!"
+                        title: "Milestone Reached!"
                         message: >
-                          You've reached {{ states('sensor.cults3d_USERNAME_followers') }} followers on Cults3D!
+                          You've reached {{ states('sensor.cults3d_printforgeau_followers') }} followers on Cults3D!
               ```
 
 
               ---
 
-              *Replace `USERNAME` with your Cults3D username and
-              `YOUR_PHONE` with your mobile app notify service.*
+              *Replace `YOUR_PHONE` with your mobile app notify service.*
 
       - type: grid
         column_span: 2
@@ -447,8 +387,8 @@ views:
             content: >-
               ---
 
-              Made with ❤️ by [PrintForge](https://cults3d.com/en/users/PrintForge)
+              Made with love by [PrintForge](https://cults3d.com/en/users/PrintforgeAU)
 
-              [☕ Buy Me a Coffee](https://buymeacoffee.com/printforge)
-              &nbsp; | &nbsp;
-              [⭐ GitHub](https://github.com/HallyAus/Cults3D)
+              [Buy Me a Coffee](https://buymeacoffee.com/printforge)
+              |
+              [GitHub](https://github.com/HallyAus/Cults3D)
