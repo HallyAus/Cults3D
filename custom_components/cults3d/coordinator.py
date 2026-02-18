@@ -33,7 +33,8 @@ _LOGGER = logging.getLogger(__name__)
 #                  illustrationImageUrl, publishedAt (NO salesCount on Creation)
 # - Money type requires selections: income { value } or similar
 # - Valid sort enums: BY_PUBLICATION, BY_DOWNLOADS (NO BY_VIEWS, NO BY_SALES)
-# - SaleBatch has NO totalCount field
+# - SaleBatch HAS total field for count, but NO totalIncome field
+# - Myself has NO salesCount or totalIncome fields
 # =============================================================================
 
 # Query for user profile data only (public data)
@@ -67,15 +68,13 @@ query GetUserCreations($nick: String!) {
 """
 
 # Separate query for sales data (requires authentication, may fail)
-# Try to get totals directly from myself object, plus recent sales for monthly calc
+# - salesBatch.total gives accurate count of all sales
+# - results are used to sum earnings (limited, so may be approximate for high-volume sellers)
 CULTS3D_SALES_QUERY = """
 query GetMySales {
   myself {
-    salesCount
-    totalIncome {
-      value
-    }
-    salesBatch(limit: 100) {
+    salesBatch(limit: 1000) {
+      total
       results {
         income {
           value
@@ -423,23 +422,21 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                 _LOGGER.info("No sales data available (myself query returned null)")
                 return 0.0, 0, 0.0, 0, False
 
-            # Get totals directly from myself object (not from batch results)
-            total_sales_count = myself_data.get("salesCount", 0) or 0
-            total_income_data = myself_data.get("totalIncome", {})
-            if total_income_data:
-                total_sales_amount = float(total_income_data.get("value", 0) or 0)
-
-            _LOGGER.debug(
-                "Total sales from API: count=%d, amount=%.2f",
-                total_sales_count,
-                total_sales_amount,
-            )
-
-            # Use salesBatch only for calculating monthly stats (last 30 days)
+            # Get data from salesBatch
             sales_batch = myself_data.get("salesBatch", {})
+
+            # Total count comes from salesBatch.total (accurate for all sales)
+            total_sales_count = sales_batch.get("total", 0) or 0
+
+            # Sum earnings from results (may be limited to 1000 most recent)
             results = sales_batch.get("results", [])
 
             for sale in results:
+                income_data = sale.get("income", {})
+                income_value = float(income_data.get("value", 0) or 0) if income_data else 0.0
+                total_sales_amount += income_value
+
+                # Check if sale is within last 30 days for monthly stats
                 created_at_str = sale.get("createdAt")
                 if created_at_str:
                     try:
@@ -447,12 +444,19 @@ class Cults3DCoordinator(DataUpdateCoordinator[Cults3DData]):
                             created_at_str.replace("Z", "+00:00")
                         )
                         if created_at >= thirty_days_ago:
-                            income_data = sale.get("income", {})
-                            income_value = float(income_data.get("value", 0) or 0) if income_data else 0.0
                             monthly_sales_amount += income_value
                             monthly_sales_count += 1
                     except (ValueError, TypeError):
                         pass
+
+            _LOGGER.debug(
+                "Sales from API: total_count=%d, earnings=%.2f (from %d records), monthly=%.2f (%d sales)",
+                total_sales_count,
+                total_sales_amount,
+                len(results),
+                monthly_sales_amount,
+                monthly_sales_count,
+            )
 
             return total_sales_amount, total_sales_count, monthly_sales_amount, monthly_sales_count, True
 
