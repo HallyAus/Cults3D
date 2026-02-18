@@ -185,8 +185,8 @@ class Cults3DSensor(CoordinatorEntity[Cults3DCoordinator], SensorEntity):
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry_id)},
             "name": f"Cults3D ({coordinator.data.username})",
-            "manufacturer": "Cults3D",
-            "model": "Creator Profile",
+            "manufacturer": "PrintForge",
+            "model": "Cults3D Integration",
             "entry_type": "service",
             "configuration_url": f"https://cults3d.com/en/users/{coordinator.data.username}",
         }
@@ -235,8 +235,8 @@ class TrackedCreationSensor(CoordinatorEntity[Cults3DCoordinator], SensorEntity)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, f"{entry_id}_tracked")},
             "name": "Cults3D Tracked Creations",
-            "manufacturer": "Cults3D",
-            "model": "Tracked Creations",
+            "manufacturer": "PrintForge",
+            "model": "Cults3D Tracked Creations",
             "entry_type": "service",
             "via_device": (DOMAIN, entry_id),
         }

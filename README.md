@@ -164,7 +164,27 @@ automation:
           message: "You made a sale! Monthly earnings: €{{ states('sensor.cults3d_username_monthly_sales_amount') }}"
 ```
 
-### Dashboard Card Example
+### Pre-Built Dashboard
+
+A complete, ready-to-use dashboard YAML is included at `custom_components/cults3d/dashboard/cults3d_dashboard.yaml`.
+
+**To install:**
+1. Go to **Settings > Dashboards > Add Dashboard**
+2. Choose "New dashboard from scratch"
+3. Click the three-dot menu and select **Raw configuration editor**
+4. Paste the contents of `cults3d_dashboard.yaml`
+5. Replace all instances of `USERNAME` with your Cults3D username (check **Developer Tools > States** and search `cults3d` to find your exact entity IDs)
+6. Save
+
+The dashboard includes:
+- Profile stats overview with tile cards
+- Revenue and growth trend charts (statistics-graph)
+- Latest creation and top downloaded cards with images
+- Monthly performance summary with calculated averages
+- Tracked creations view
+- Automation templates for sale notifications, daily reports, and milestone alerts
+
+### Quick Dashboard Card
 
 ```yaml
 type: vertical-stack
