@@ -53,7 +53,7 @@
           "creation_url": "Creation URL or slug"
         },
         "data_description": {
-          "creation_url": "Full URL (e.g., https://cults3d.com/en/3d-model/...) or just the slug"
+          "creation_url": "Paste the full creation URL or enter its slug."
         }
       }
     },

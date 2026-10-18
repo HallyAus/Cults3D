@@ -14,3 +14,8 @@ Keep GitHub recovery visibility and Actions disabled. The public HACS credential
 validation and installed-consumer distribution path remain separate gates; a
 private candidate alone does not certify production installation or public
 release readiness. No new periodic schedule is inferred or enabled here.
+
+Run540 refused the example URL in translation help. Keep full-URL-or-slug
+guidance without the literal example; accepted input remains unchanged.
+No runtime Python, authorization, account API, version or HACS minimum changes.
+Complete new workflow and exact private candidate proof remain required.
